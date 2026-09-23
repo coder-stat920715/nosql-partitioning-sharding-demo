@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: nosql-partitioning-sharding-demo
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/partitioning_demo   # points at mongos router, NOT a shard directly
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
+    com.publicissapient.partitioning: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  data:
+    mongodb:
+      uri: mongodb://mongos:27017/partitioning_demo

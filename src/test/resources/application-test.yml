@@ -1,0 +1,4 @@
+spring:
+  data:
+    mongodb:
+      port: 0   # let de.flapdoodle embedded mongo pick a free port

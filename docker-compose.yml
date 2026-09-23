@@ -1,0 +1,128 @@
+version: "3.9"
+
+# =====================================================================================
+# Local MongoDB SHARDED CLUSTER topology
+#
+#   configsvr (1-node replica set "cfgrs")   -> stores cluster metadata / chunk map
+#   shard01   (1-node replica set "shard01rs") -> data shard #1
+#   shard02   (1-node replica set "shard02rs") -> data shard #2
+#   mongos                                    -> stateless query router (the ONLY
+#                                                 endpoint the Spring Boot app talks to)
+#   mongo-init                                -> one-shot container that:
+#                                                   1. initiates each replica set
+#                                                   2. adds shard01 + shard02 to the cluster
+#                                                   3. enables sharding on the DB
+#                                                   4. shards each collection with its
+#                                                      designated shard key
+#
+# NOTE: single-node replica sets are used purely to keep this a fast, local,
+# laptop-friendly demo. In production each of configsvr/shard01/shard02 would be a
+# 3-node (or 5-node) replica set spread across failure domains.
+# =====================================================================================
+
+services:
+
+  configsvr:
+    image: mongo:7.0
+    container_name: configsvr
+    command: ["mongod", "--configsvr", "--replSet", "cfgrs", "--port", "27019", "--bind_ip_all"]
+    ports:
+      - "27019:27019"
+    volumes:
+      - configsvr_data:/data/db
+    networks:
+      - shardnet
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27019", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  shard01:
+    image: mongo:7.0
+    container_name: shard01
+    command: ["mongod", "--shardsvr", "--replSet", "shard01rs", "--port", "27018", "--bind_ip_all", "--dbpath", "/data/db"]
+    ports:
+      - "27018:27018"
+    volumes:
+      - shard01_data:/data/db
+    networks:
+      - shardnet
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  shard02:
+    image: mongo:7.0
+    container_name: shard02
+    command: ["mongod", "--shardsvr", "--replSet", "shard02rs", "--port", "27020", "--bind_ip_all", "--dbpath", "/data/db"]
+    ports:
+      - "27020:27020"
+    volumes:
+      - shard02_data:/data/db
+    networks:
+      - shardnet
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27020", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongos:
+    image: mongo:7.0
+    container_name: mongos
+    depends_on:
+      - configsvr
+      - shard01
+      - shard02
+    command: ["mongos", "--configdb", "cfgrs/configsvr:27019", "--port", "27017", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    networks:
+      - shardnet
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: mongo-init
+    depends_on:
+      - configsvr
+      - shard01
+      - shard02
+      - mongos
+    volumes:
+      - ./mongo-init:/scripts:ro
+    networks:
+      - shardnet
+    entrypoint: ["bash", "/scripts/mongo-init.sh"]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: partitioning-demo-app
+    depends_on:
+      - mongo-init
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongos:27017/partitioning_demo
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - shardnet
+    restart: on-failure
+
+networks:
+  shardnet:
+    driver: bridge
+
+volumes:
+  configsvr_data:
+  shard01_data:
+  shard02_data:
