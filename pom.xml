@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
  
-    <groupId>com.publicissapient</groupId>
+    <groupId>com.souptik</groupId>
     <artifactId>nosql-partitioning-sharding-demo</artifactId>
     <version>1.0.0</version>
     <name>nosql-partitioning-sharding-demo</name>

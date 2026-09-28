@@ -195,7 +195,7 @@ write-friendly suffix.
 ## 5. Project Layout
 
 ```
-src/main/java/com/publicissapient/partitioning/
+src/main/java/com/souptik/partitioning/
 ├── PartitioningDemoApplication.java
 ├── config/AsyncConfig.java                 # scatter-gather thread pool
 ├── domain/                                 # sharded entities (@Sharded annotations)
